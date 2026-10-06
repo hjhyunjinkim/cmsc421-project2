@@ -589,7 +589,7 @@ These figures are inputs to your **PDF report**.
 
 ---
 
-# Visualizing a plan (optional)
+# Visualizing a plan
 
 The standalone visualizer is the place to select one planner explicitly. It
 solves one completed experiment and displays its world-state trace. It supports
