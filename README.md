@@ -30,16 +30,15 @@ The assignment handout names the nine experimental configurations as follows:
 | F1 | Four-car cross traffic with one ferry |
 | F2 | F1 with two independent ferries |
 
-Use these IDs when reading the handout and discussing results in the report.
+Use these IDs when reading the handout and discussing results in your PDF report.
 
 The required modifications are fixed. Do **not** invent a different world modification.
 
 ---
-
 Submit:
 
 1. the nine completed PDDL TODO files listed below; and
-2. A pdf report following the analysis requirements in the project handout.
+2. one **PDF report** following the analysis requirements in the project handout. The PDF filename is up to you unless the submission system specifies one.
 
 The detailed report questions are in the assignment PDF/LaTeX handout, not in this README. This README is primarily a guide to the codebase and the implementation tasks.
 
@@ -100,7 +99,14 @@ The public tests and experiment runner skip that task while the marker is presen
 
 # Setup
 
-Use Python 3.10 or newer.
+Use Python 3.10 or newer. If you have not cloned the repository yet, run:
+
+```bash
+git clone https://github.com/hjhyunjinkim/cmsc421-project2.git
+cd cmsc421-project2
+```
+
+Run the remaining commands from the repository root.
 
 A virtual environment is recommended:
 
@@ -537,13 +543,15 @@ results/results.csv
 results/plans.txt
 ```
 
-`results/results.csv` records, when applicable:
+`results/results.csv` contains both the handout experiment ID (for example `B1`) and a descriptive internal case name. It records, when applicable:
 
+- `experiment_id`: the B0--B3 / E0--E1 / F0--F2 identifier used in the handout;
+- `case`: a descriptive machine-readable case name;
 - `ground_actions`: number of grounded actions for the problem;
 - `states_generated`, `states_expanded`, `visited_states`, `max_frontier`: forward-BFS search measurements;
 - `plan_actions`: number of non-persistence actions in the returned plan;
 - `makespan`: number of sequential steps for BFS or parallel time steps for GraphPlan;
-- `graph_levels`: number of GraphPlan levels required before extraction succeeds;
+- `graph_levels`: GraphPlan planning horizon, i.e. the number of action layers built before successful extraction;
 - `fact_nodes` and `action_nodes`: cumulative planning-graph nodes across built layers;
 - `action_mutexes` and `fact_mutexes`: cumulative mutex pairs across built layers; and
 - `runtime_s`: wall-clock runtime for that run.
@@ -577,6 +585,8 @@ results/plan_structure.png
 
 - `search_effort.png` compares forward-BFS states expanded.
 - `plan_structure.png` compares GraphPlan primitive action count with parallel makespan.
+
+These figures are inputs to your **PDF report**. Do not submit a Markdown report.
 
 ---
 
