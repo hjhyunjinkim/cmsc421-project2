@@ -595,15 +595,24 @@ List the cases that are currently ready:
 python visualize_plan.py --list
 ```
 
-Open an interactive GraphPlan plan viewer:
+The visualizer supports both supplied planners. To inspect the sequential plan
+returned by forward STRIPS BFS:
+
+```bash
+python visualize_plan.py --case B0 --planner bfs
+```
+
+To inspect the parallel plan returned by GraphPlan:
 
 ```bash
 python visualize_plan.py --case B0 --planner graphplan
 ```
 
 Use **Previous** and **Next** (or the left and right arrow keys) to inspect the
-plan one step at a time. Satisfied goal facts are outlined in green. A GraphPlan
-frame can contain multiple parallel actions.
+plan one step at a time. Satisfied goal facts are outlined in green. BFS frames
+contain one action at a time, while a GraphPlan frame can contain multiple
+independent actions executed in parallel. GraphPlan is the default if
+`--planner` is omitted.
 
 An unfinished student case reports which PDDL file must be completed instead of
 trying to display a partial model.
