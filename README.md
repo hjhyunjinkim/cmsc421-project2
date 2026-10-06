@@ -586,7 +586,7 @@ results/plan_structure.png
 - `search_effort.png` compares forward-BFS states expanded.
 - `plan_structure.png` compares GraphPlan primitive action count with parallel makespan.
 
-These figures are inputs to your **PDF report**. Do not submit a Markdown report.
+These figures are inputs to your **PDF report**. 
 
 ---
 
