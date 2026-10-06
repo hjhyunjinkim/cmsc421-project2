@@ -22,36 +22,35 @@ def solve(domain_rel: str, problem_rel: str):
     return problem, actions, bfs_result, gp_result
 
 
+def assert_baseline_solved(domain_rel: str, problem_rel: str) -> None:
+    problem, actions, bfs_result, gp_result = solve(domain_rel, problem_rel)
+    assert actions
+    assert bfs_result.success
+    assert gp_result.success
+    assert validate_sequential(problem, bfs_result.plan)[0]
+    assert validate_parallel(problem, gp_result.plan)[0]
+
+
 def test_blocks_baseline_solved_by_both_planners():
-    problem, actions, bfs_result, gp_result = solve(
+    assert_baseline_solved(
         "pddl/blocksworld/domain.pddl",
         "pddl/blocksworld/baseline3.pddl",
     )
-    assert actions
-    assert bfs_result.success
-    assert gp_result.success
-    assert validate_sequential(problem, bfs_result.plan)[0]
-    assert validate_parallel(problem, gp_result.plan)[0]
 
 
 def test_elevator_baseline_solved_by_both_planners():
-    problem, actions, bfs_result, gp_result = solve(
+    assert_baseline_solved(
         "pddl/elevator/domain.pddl",
         "pddl/elevator/baseline.pddl",
     )
-    assert actions
-    assert bfs_result.success
-    assert gp_result.success
-    assert validate_sequential(problem, bfs_result.plan)[0]
-    assert validate_parallel(problem, gp_result.plan)[0]
 
 
-def test_ferry_baseline_solved_by_both_planners():
+def test_logistics_baseline_solved_by_both_planners():
     problem, actions, bfs_result, gp_result = solve(
-        "pddl/ferry/domain.pddl",
-        "pddl/ferry/baseline.pddl",
+        "pddl/logistics/domain.pddl",
+        "pddl/logistics/goal_c1_d2.pddl",
     )
-    assert actions
+    assert len(actions) == 24
     assert bfs_result.success
     assert gp_result.success
     assert validate_sequential(problem, bfs_result.plan)[0]

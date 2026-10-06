@@ -35,9 +35,11 @@ CASES = [
     Case("B3", "blocks-two-grippers", "pddl/blocksworld/domain_two_grippers.pddl", "pddl/blocksworld/sussman3_two_grippers.pddl"),
     Case("E0", "elevator-baseline", "pddl/elevator/domain.pddl", "pddl/elevator/baseline.pddl"),
     Case("E1", "elevator-split-service", "pddl/elevator/domain_split_service.pddl", "pddl/elevator/split_service.pddl"),
-    Case("F0", "ferry-baseline", "pddl/ferry/domain.pddl", "pddl/ferry/baseline.pddl"),
-    Case("F1", "ferry-cross-traffic", "pddl/ferry/domain.pddl", "pddl/ferry/ferry_cross_traffic.pddl"),
-    Case("F2", "ferry-two-ferries", "pddl/ferry/domain_two_ferries.pddl", "pddl/ferry/ferry_cross_traffic_two.pddl"),
+    Case("L0", "logistics-c1-to-d2", "pddl/logistics/domain.pddl", "pddl/logistics/goal_c1_d2.pddl"),
+    Case("L1", "logistics-c1-d1-robot-d2", "pddl/logistics/domain.pddl", "pddl/logistics/goal_c1_d1_robot_d2.pddl"),
+    Case("L2", "logistics-nested-onboard-goal", "pddl/logistics/domain.pddl", "pddl/logistics/goal_c1_d1_c3_onboard_robot_d2.pddl"),
+    Case("L3", "logistics-two-deliveries", "pddl/logistics/domain.pddl", "pddl/logistics/goal_c1_d2_c3_d3.pddl"),
+    Case("L4", "logistics-all-to-d3", "pddl/logistics/domain.pddl", "pddl/logistics/goal_all_d3.pddl"),
 ]
 
 
@@ -54,6 +56,53 @@ def parallel_plan_text(plan) -> list[str]:
     for t, step in enumerate(plan):
         body = " | ".join(action.label for action in step) if step else "<noop>"
         lines.append(f"t{t:02d}: {body}")
+    return lines
+
+
+def dynamic_predicates(actions) -> set[str]:
+    """Predicates changed by at least one real grounded action.
+
+    Static relations such as connected/link/route are intentionally omitted from
+    the printed state traces so the traces focus on the changing world state.
+    """
+    return {
+        fact[0]
+        for action in actions
+        for fact in (action.add_eff | action.del_eff)
+    }
+
+
+def fact_text(fact) -> str:
+    return "(" + " ".join(fact) + ")"
+
+
+def state_line(label: str, state, problem, dynamic: set[str]) -> str:
+    facts = sorted(fact_text(f) for f in state if f[0] in dynamic)
+    satisfied = sum(1 for g in problem.goal_pos if g in state)
+    total = len(problem.goal_pos)
+    body = " ".join(facts) if facts else "<no dynamic facts>"
+    return f"{label}: {body}    [goal facts satisfied: {satisfied}/{total}]"
+
+
+def sequential_state_trace(problem, plan, actions) -> list[str]:
+    dynamic = dynamic_predicates(actions)
+    state = problem.init
+    lines = [state_line("s00", state, problem, dynamic)]
+    for i, action in enumerate(plan, start=1):
+        state = action.apply(state)
+        lines.append(state_line(f"s{i:02d}", state, problem, dynamic))
+    return lines
+
+
+def parallel_state_trace(problem, plan, actions) -> list[str]:
+    dynamic = dynamic_predicates(actions)
+    state = problem.init
+    lines = [state_line("t00-state", state, problem, dynamic)]
+    for t, step in enumerate(plan, start=1):
+        deletes = frozenset().union(*(a.del_eff for a in step)) if step else frozenset()
+        adds = frozenset().union(*(a.add_eff for a in step)) if step else frozenset()
+        state = frozenset((state - deletes) | adds)
+        lines.append(state_line(f"t{t:02d}-state", state, problem, dynamic))
     return lines
 
 
@@ -111,6 +160,7 @@ def run_case(case: Case, args) -> tuple[list[dict], list[str]]:
             "plan_actions": len(bfs_result.plan),
             "makespan": len(bfs_result.plan),
             "graph_levels": "",
+            "extraction_calls": "",
             "fact_nodes": "",
             "action_nodes": "",
             "action_mutexes": "",
@@ -119,10 +169,13 @@ def run_case(case: Case, args) -> tuple[list[dict], list[str]]:
             "reason": bfs_result.reason,
         }
     )
+
     plan_lines += ["Forward STRIPS / BFS:"]
     if bfs_result.success:
         plan_lines += sequential_plan_text(bfs_result.plan)
         plan_lines.append(f"Validation: {bfs_message}")
+        plan_lines.append("Dynamic-state trace:")
+        plan_lines += sequential_state_trace(problem, bfs_result.plan, actions)
     else:
         plan_lines.append(f"FAILED: {bfs_result.reason}")
     plan_lines.append("")
@@ -151,6 +204,7 @@ def run_case(case: Case, args) -> tuple[list[dict], list[str]]:
             "plan_actions": sum(len(step) for step in gp_result.plan),
             "makespan": len(gp_result.plan),
             "graph_levels": gp_result.levels,
+            "extraction_calls": gp_result.extraction_calls,
             "fact_nodes": gp_result.fact_nodes,
             "action_nodes": gp_result.action_nodes,
             "action_mutexes": gp_result.action_mutexes,
@@ -159,10 +213,13 @@ def run_case(case: Case, args) -> tuple[list[dict], list[str]]:
             "reason": gp_result.reason,
         }
     )
+
     plan_lines += ["GraphPlan:"]
     if gp_result.success:
         plan_lines += parallel_plan_text(gp_result.plan)
         plan_lines.append(f"Validation: {gp_message}")
+        plan_lines.append("Dynamic-state trace:")
+        plan_lines += parallel_state_trace(problem, gp_result.plan, actions)
     else:
         plan_lines.append(f"FAILED: {gp_result.reason}")
     plan_lines.append("")
@@ -189,7 +246,6 @@ def main() -> None:
 
     rows: list[dict] = []
     plans: list[str] = []
-
     for case in CASES:
         case_rows, case_plans = run_case(case, args)
         rows.extend(case_rows)
@@ -197,7 +253,6 @@ def main() -> None:
 
     out_path = ROOT / args.out
     out_path.parent.mkdir(parents=True, exist_ok=True)
-
     if rows:
         with out_path.open("w", newline="") as handle:
             writer = csv.DictWriter(handle, fieldnames=list(rows[0].keys()))
