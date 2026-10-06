@@ -2,7 +2,15 @@ from pathlib import Path
 
 import pytest
 
-from planner import bfs, ground, load_domain, load_problem, solve_graphplan
+from planner import (
+    bfs,
+    ground,
+    load_domain,
+    load_problem,
+    solve_graphplan,
+    validate_parallel,
+    validate_sequential,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 TODO = "TODO-STUDENT: UNFINISHED"
@@ -26,11 +34,46 @@ def schema(domain, name: str):
     return matches[0]
 
 
+def assert_action_names(domain, expected: set[str]) -> None:
+    actual = {a.name for a in domain.actions}
+    assert actual == expected, f"expected action schemas {sorted(expected)}, got {sorted(actual)}"
+
+
+def assert_ground_action(
+    actions,
+    name: str,
+    *,
+    pos_pre: set[tuple[str, ...]],
+    add_eff: set[tuple[str, ...]],
+    del_eff: set[tuple[str, ...]],
+) -> None:
+    """Require a grounded action with exactly the specified STRIPS semantics.
+
+    Matching on grounded facts rather than parameter names lets students choose
+    harmless variable names/order while still enforcing the required world model.
+    """
+    matches = [
+        a
+        for a in actions
+        if a.name == name
+        and a.pos_pre == frozenset(pos_pre)
+        and not a.neg_pre
+        and a.add_eff == frozenset(add_eff)
+        and a.del_eff == frozenset(del_eff)
+    ]
+    assert matches, f"no grounded {name} action had the required preconditions/effects"
+
+
 def assert_solved(problem, actions):
     bfs_result = bfs(problem, actions)
     gp_result = solve_graphplan(problem, actions)
     assert bfs_result.success, bfs_result.reason
     assert gp_result.success, gp_result.reason
+
+    bfs_valid, bfs_message = validate_sequential(problem, bfs_result.plan)
+    gp_valid, gp_message = validate_parallel(problem, gp_result.plan)
+    assert bfs_valid, bfs_message
+    assert gp_valid, gp_message
     return bfs_result, gp_result
 
 
@@ -50,6 +93,7 @@ def test_sussman3_exact_instance_and_solvable():
         ("handempty",),
     })
     assert problem.goal_pos == frozenset({("on", "a", "b"), ("on", "b", "c")})
+    assert not problem.goal_neg
     assert len(actions) == 18
     assert_solved(problem, actions)
 
@@ -82,6 +126,7 @@ def test_sussman6_exact_instance_and_solvable():
         ("on", "d", "e"),
         ("on", "e", "f"),
     })
+    assert not problem.goal_neg
     assert len(actions) == 72
     assert_solved(problem, actions)
 
@@ -93,6 +138,7 @@ def test_two_gripper_domain_and_problem_are_exact_and_parallelize():
     domain, problem, actions = load(d, p)
 
     assert domain.name == "blocks-two-grippers"
+    assert_action_names(domain, {"pickup", "putdown", "stack", "unstack"})
     assert problem.objects == {
         "a": "block", "b": "block", "c": "block",
         "left": "gripper", "right": "gripper",
@@ -107,12 +153,38 @@ def test_two_gripper_domain_and_problem_are_exact_and_parallelize():
         ("free", "right"),
     })
     assert problem.goal_pos == frozenset({("on", "a", "b"), ("on", "b", "c")})
+    assert not problem.goal_neg
 
-    for name in ("pickup", "putdown", "stack", "unstack"):
-        action = schema(domain, name)
-        assert any(param_type == "gripper" for _, param_type in action.parameters)
-        referenced = action.pos_pre | action.neg_pre | action.add_eff | action.del_eff
-        assert any(f[0] in {"free", "holding"} for f in referenced)
+    # Exact representative grounded semantics. This catches models that merely
+    # mention a gripper but fail to make free/holding a true capacity-one resource.
+    assert_ground_action(
+        actions,
+        "pickup",
+        pos_pre={("ontable", "a"), ("clear", "a"), ("free", "left")},
+        add_eff={("holding", "left", "a")},
+        del_eff={("ontable", "a"), ("clear", "a"), ("free", "left")},
+    )
+    assert_ground_action(
+        actions,
+        "putdown",
+        pos_pre={("holding", "left", "a")},
+        add_eff={("ontable", "a"), ("clear", "a"), ("free", "left")},
+        del_eff={("holding", "left", "a")},
+    )
+    assert_ground_action(
+        actions,
+        "stack",
+        pos_pre={("holding", "left", "a"), ("clear", "b")},
+        add_eff={("on", "a", "b"), ("clear", "a"), ("free", "left")},
+        del_eff={("holding", "left", "a"), ("clear", "b")},
+    )
+    assert_ground_action(
+        actions,
+        "unstack",
+        pos_pre={("on", "a", "b"), ("clear", "a"), ("free", "left")},
+        add_eff={("holding", "left", "a"), ("clear", "b")},
+        del_eff={("on", "a", "b"), ("clear", "a"), ("free", "left")},
+    )
 
     assert len(actions) == 36
     _, gp = assert_solved(problem, actions)
@@ -126,6 +198,7 @@ def test_split_service_elevator_exact_links_transfer_and_solvable():
     domain, problem, actions = load(d, p)
 
     assert domain.name == "elevator-split-service"
+    assert_action_names(domain, {"move", "board", "leave"})
     assert problem.objects == {
         "even": "elevator", "odd": "elevator",
         "p1": "passenger", "p2": "passenger",
@@ -151,12 +224,29 @@ def test_split_service_elevator_exact_links_transfer_and_solvable():
         ("passenger-at", "p1", "f3"),
         ("passenger-at", "p2", "f4"),
     })
+    assert not problem.goal_neg
 
-    move = schema(domain, "move")
-    assert ("link", "?e", "?from", "?to") in move.pos_pre
-    assert ("lift-at", "?e", "?from") in move.pos_pre
-    schema(domain, "board")
-    schema(domain, "leave")
+    assert_ground_action(
+        actions,
+        "move",
+        pos_pre={("lift-at", "even", "f0"), ("link", "even", "f0", "f2")},
+        add_eff={("lift-at", "even", "f2")},
+        del_eff={("lift-at", "even", "f0")},
+    )
+    assert_ground_action(
+        actions,
+        "board",
+        pos_pre={("passenger-at", "p1", "f2"), ("lift-at", "even", "f2")},
+        add_eff={("boarded", "p1", "even")},
+        del_eff={("passenger-at", "p1", "f2")},
+    )
+    assert_ground_action(
+        actions,
+        "leave",
+        pos_pre={("boarded", "p1", "even"), ("lift-at", "even", "f2")},
+        add_eff={("passenger-at", "p1", "f2")},
+        del_eff={("boarded", "p1", "even")},
+    )
 
     assert len(actions) == 68
     assert_solved(problem, actions)
@@ -188,6 +278,7 @@ def test_ferry_cross_traffic_exact_instance_and_solvable():
         ("car-at", "c3", "left-bank"),
         ("car-at", "c4", "left-bank"),
     })
+    assert not problem.goal_neg
     assert len(actions) == 18
     assert_solved(problem, actions)
 
@@ -199,6 +290,7 @@ def test_two_ferries_exact_instance_and_parallelize():
     domain, problem, actions = load(d, p)
 
     assert domain.name == "ferry-two"
+    assert_action_names(domain, {"board", "debark", "sail"})
     assert problem.objects == {
         "c1": "car", "c2": "car", "c3": "car", "c4": "car",
         "ferry1": "ferry", "ferry2": "ferry",
@@ -222,22 +314,33 @@ def test_two_ferries_exact_instance_and_parallelize():
         ("car-at", "c3", "left-bank"),
         ("car-at", "c4", "left-bank"),
     })
+    assert not problem.goal_neg
 
-    for name in ("board", "debark", "sail"):
-        action = schema(domain, name)
-        assert any(param_type == "ferry" for _, param_type in action.parameters)
-
-    board = schema(domain, "board")
-    assert ("empty", "?f") in board.pos_pre
-    assert ("empty", "?f") in board.del_eff
-    assert ("onboard", "?c", "?f") in board.add_eff
-
-    debark = schema(domain, "debark")
-    assert ("onboard", "?c", "?f") in debark.pos_pre
-    assert ("empty", "?f") in debark.add_eff
-
-    sail = schema(domain, "sail")
-    assert ("ferry-at", "?f", "?from") in sail.pos_pre
+    assert_ground_action(
+        actions,
+        "board",
+        pos_pre={
+            ("car-at", "c1", "left-bank"),
+            ("ferry-at", "ferry1", "left-bank"),
+            ("empty", "ferry1"),
+        },
+        add_eff={("onboard", "c1", "ferry1")},
+        del_eff={("car-at", "c1", "left-bank"), ("empty", "ferry1")},
+    )
+    assert_ground_action(
+        actions,
+        "debark",
+        pos_pre={("onboard", "c1", "ferry1"), ("ferry-at", "ferry1", "left-bank")},
+        add_eff={("car-at", "c1", "left-bank"), ("empty", "ferry1")},
+        del_eff={("onboard", "c1", "ferry1")},
+    )
+    assert_ground_action(
+        actions,
+        "sail",
+        pos_pre={("ferry-at", "ferry1", "left-bank"), ("route", "left-bank", "right-bank")},
+        add_eff={("ferry-at", "ferry1", "right-bank")},
+        del_eff={("ferry-at", "ferry1", "left-bank")},
+    )
 
     assert len(actions) == 36
     _, gp = assert_solved(problem, actions)

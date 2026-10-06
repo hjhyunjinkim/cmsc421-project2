@@ -22,21 +22,22 @@ TODO_MARKER = "TODO-STUDENT: UNFINISHED"
 
 @dataclass(frozen=True)
 class Case:
+    experiment_id: str
     name: str
     domain: str
     problem: str
 
 
 CASES = [
-    Case("blocks-baseline-3", "pddl/blocksworld/domain.pddl", "pddl/blocksworld/baseline3.pddl"),
-    Case("blocks-sussman-3", "pddl/blocksworld/domain.pddl", "pddl/blocksworld/sussman3.pddl"),
-    Case("blocks-sussman-6", "pddl/blocksworld/domain.pddl", "pddl/blocksworld/sussman6.pddl"),
-    Case("blocks-two-grippers", "pddl/blocksworld/domain_two_grippers.pddl", "pddl/blocksworld/sussman3_two_grippers.pddl"),
-    Case("elevator-baseline", "pddl/elevator/domain.pddl", "pddl/elevator/baseline.pddl"),
-    Case("elevator-split-service", "pddl/elevator/domain_split_service.pddl", "pddl/elevator/split_service.pddl"),
-    Case("ferry-baseline", "pddl/ferry/domain.pddl", "pddl/ferry/baseline.pddl"),
-    Case("ferry-cross-traffic", "pddl/ferry/domain.pddl", "pddl/ferry/ferry_cross_traffic.pddl"),
-    Case("ferry-two-ferries", "pddl/ferry/domain_two_ferries.pddl", "pddl/ferry/ferry_cross_traffic_two.pddl"),
+    Case("B0", "blocks-baseline-3", "pddl/blocksworld/domain.pddl", "pddl/blocksworld/baseline3.pddl"),
+    Case("B1", "blocks-sussman-3", "pddl/blocksworld/domain.pddl", "pddl/blocksworld/sussman3.pddl"),
+    Case("B2", "blocks-sussman-6", "pddl/blocksworld/domain.pddl", "pddl/blocksworld/sussman6.pddl"),
+    Case("B3", "blocks-two-grippers", "pddl/blocksworld/domain_two_grippers.pddl", "pddl/blocksworld/sussman3_two_grippers.pddl"),
+    Case("E0", "elevator-baseline", "pddl/elevator/domain.pddl", "pddl/elevator/baseline.pddl"),
+    Case("E1", "elevator-split-service", "pddl/elevator/domain_split_service.pddl", "pddl/elevator/split_service.pddl"),
+    Case("F0", "ferry-baseline", "pddl/ferry/domain.pddl", "pddl/ferry/baseline.pddl"),
+    Case("F1", "ferry-cross-traffic", "pddl/ferry/domain.pddl", "pddl/ferry/ferry_cross_traffic.pddl"),
+    Case("F2", "ferry-two-ferries", "pddl/ferry/domain_two_ferries.pddl", "pddl/ferry/ferry_cross_traffic_two.pddl"),
 ]
 
 
@@ -61,8 +62,8 @@ def run_case(case: Case, args) -> tuple[list[dict], list[str]]:
     problem_path = ROOT / case.problem
 
     if unfinished(domain_path) or unfinished(problem_path):
-        print(f"SKIP  {case.name}: unfinished TODO file")
-        return [], [f"## {case.name}", "SKIPPED: unfinished TODO file", ""]
+        print(f"SKIP  {case.experiment_id} ({case.name}): unfinished TODO file")
+        return [], [f"## {case.experiment_id} — {case.name}", "SKIPPED: unfinished TODO file", ""]
 
     domain = load_domain(domain_path)
     problem = load_problem(problem_path)
@@ -79,7 +80,7 @@ def run_case(case: Case, args) -> tuple[list[dict], list[str]]:
 
     rows: list[dict] = []
     plan_lines: list[str] = [
-        f"## {case.name}",
+        f"## {case.experiment_id} — {case.name}",
         f"Domain: {case.domain}",
         f"Problem: {case.problem}",
         f"Ground actions: {len(actions)}",
@@ -94,6 +95,7 @@ def run_case(case: Case, args) -> tuple[list[dict], list[str]]:
     )
     rows.append(
         {
+            "experiment_id": case.experiment_id,
             "case": case.name,
             "planner": "forward-strips-bfs",
             "success": bfs_result.success,
@@ -133,6 +135,7 @@ def run_case(case: Case, args) -> tuple[list[dict], list[str]]:
     )
     rows.append(
         {
+            "experiment_id": case.experiment_id,
             "case": case.name,
             "planner": "graphplan",
             "success": gp_result.success,
@@ -165,7 +168,7 @@ def run_case(case: Case, args) -> tuple[list[dict], list[str]]:
     plan_lines.append("")
 
     print(
-        f"DONE  {case.name}: actions={len(actions)}, "
+        f"DONE  {case.experiment_id} ({case.name}): actions={len(actions)}, "
         f"BFS={'ok' if bfs_result.success else bfs_result.reason}, "
         f"GraphPlan={'ok' if gp_result.success else gp_result.reason}"
     )

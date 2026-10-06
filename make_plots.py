@@ -25,7 +25,7 @@ def plot_search_effort(rows: list[dict[str, str]]) -> None:
     if not bfs:
         return
 
-    names = [row["case"] for row in bfs]
+    names = [row.get("experiment_id") or row["case"] for row in bfs]
     values = [int(row["states_expanded"]) for row in bfs]
 
     fig, ax = plt.subplots(figsize=(10, 5))
@@ -47,7 +47,7 @@ def plot_plan_structure(rows: list[dict[str, str]]) -> None:
     if not graphplan:
         return
 
-    names = [row["case"] for row in graphplan]
+    names = [row.get("experiment_id") or row["case"] for row in graphplan]
     actions = [int(row["plan_actions"]) for row in graphplan]
     makespan = [int(row["makespan"]) for row in graphplan]
     x = list(range(len(names)))
