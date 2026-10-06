@@ -128,21 +128,20 @@ Activate it, then install the dependencies:
 pip install -r requirements.txt
 ```
 
-The planning code itself uses only the Python standard library. `pytest` is used for the public tests and `matplotlib` is used for the required figures.
+The planning code itself uses only the Python standard library. `matplotlib` is
+used for the required figures, and `pytest` is used only to verify the PDDL and
+planner outputs.
 
-Run the baseline smoke test:
+Run the baseline smoke test to confirm the installation and see both supplied
+planners solve the provided B0 problem:
 
 ```bash
 python -m planner
 ```
 
-Run the public tests:
-
-```bash
-python -m pytest
-```
-
-A fresh starter repository should report the baseline tests as passing and the unfinished student-model tests as skipped.
+This smoke test prints one sequential BFS plan and one parallel GraphPlan plan.
+It is only a quick demonstration; the experiment runner described below is what
+you will use to generate results for the report.
 
 ---
 
@@ -521,13 +520,18 @@ The robot's final location and whether it is empty are not separately required.
 
 ---
 
-# Running the experiments
+# Running BFS and GraphPlan experiments
 
-Run every currently completed case with:
+Run every currently completed case through **both** supplied planners with:
 
 ```bash
 python run_experiments.py
 ```
+
+This one command runs forward STRIPS/BFS and GraphPlan for each completed case.
+There is no separate planner option for the experiment runner, and you do not
+need to invoke the planners individually. Cases that still contain the
+`TODO-STUDENT: UNFINISHED` marker are skipped.
 
 The script writes:
 
@@ -551,13 +555,15 @@ results/plans.txt
 
 `results/plans.txt` contains the actual sequential BFS plan and the parallel GraphPlan plan for every completed configuration.
 
-Optional reachable-state enumeration:
+For the final report, enable reachable-state enumeration so that the BFS table
+can report reachable-state counts:
 
 ```bash
 python run_experiments.py --enumerate-reachable
 ```
 
-This is optional because enumeration can become expensive. The output indicates whether the count is exact or was capped by the node limit.
+Reachable-state enumeration can be more expensive than solving alone. The
+output indicates whether the count is exact or was capped by the node limit.
 
 ---
 
@@ -585,9 +591,10 @@ These figures are inputs to your **PDF report**.
 
 # Visualizing a plan (optional)
 
-The standalone visualizer solves one completed experiment and displays its
-world-state trace. It supports Blocks World, Elevator, and Logistics without
-changing the supplied planner or experiment code.
+The standalone visualizer is the place to select one planner explicitly. It
+solves one completed experiment and displays its world-state trace. It supports
+Blocks World, Elevator, and Logistics without changing the supplied planner or
+experiment code.
 
 List the cases that are currently ready:
 
@@ -619,15 +626,17 @@ trying to display a partial model.
 
 ---
 
-# Public tests
+# Verifying your work with the public tests
 
-Run:
+After generating and inspecting your experiment results, run:
 
 ```bash
 python -m pytest
 ```
 
-The public tests verify the prescribed structure of the student PDDL files and check that the resulting problems are solvable by the supplied planners.
+`pytest` is a verification command, not the experiment runner. The public tests
+check the prescribed structure of the student PDDL files and verify that the
+resulting problems are solvable by both supplied planners.
 The final `PDDL checks` section reports every baseline and student case as
 `PASS`, `FAIL`, or `INCOMPLETE`. An incomplete case still contains a
 `TODO-STUDENT: UNFINISHED` marker. If a completed model fails, pytest also
