@@ -157,7 +157,9 @@ def solve_graphplan(
             failed.add(key)
         return answer
 
-    for _ in range(max_levels):
+    # Check level zero through max_levels inclusively. Expanding exactly
+    # max_levels action layers must still allow extraction at the boundary.
+    for _ in range(max_levels + 1):
         level = len(fact_layers) - 1
         goals = problem.goal_pos
 
@@ -177,6 +179,9 @@ def solve_graphplan(
                     sum(len(layer) for layer in fact_mutex_layers),
                     extraction_calls,
                 )
+
+        if level == max_levels:
+            break
 
         facts = fact_layers[-1]
         prev_fmutex = fact_mutex_layers[-1]

@@ -20,6 +20,14 @@ ROOT = Path(__file__).resolve().parent
 TODO_MARKER = "TODO-STUDENT: UNFINISHED"
 
 
+def display_path(path: Path) -> str:
+    """Show repository paths compactly while accepting external output paths."""
+    try:
+        return str(path.relative_to(ROOT))
+    except ValueError:
+        return str(path)
+
+
 @dataclass(frozen=True)
 class Case:
     experiment_id: str
@@ -258,13 +266,13 @@ def main() -> None:
             writer = csv.DictWriter(handle, fieldnames=list(rows[0].keys()))
             writer.writeheader()
             writer.writerows(rows)
-        print(f"Wrote {out_path.relative_to(ROOT)}")
+        print(f"Wrote {display_path(out_path)}")
     else:
         print("No completed cases were available to write.")
 
     plans_path = out_path.parent / "plans.txt"
     plans_path.write_text("\n".join(plans) + "\n")
-    print(f"Wrote {plans_path.relative_to(ROOT)}")
+    print(f"Wrote {display_path(plans_path)}")
 
 
 if __name__ == "__main__":

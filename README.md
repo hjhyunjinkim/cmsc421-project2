@@ -16,7 +16,7 @@ Your job is to complete the prescribed PDDL changes, run the supplied planners, 
 
 > **START -> BREAK -> EXTEND -> COMPARE**
 
-The assignment handout names the nine experimental configurations as follows:
+The assignment handout names the eleven experimental configurations as follows:
 
 | ID | Configuration |
 | --- | --- |
@@ -26,9 +26,11 @@ The assignment handout names the nine experimental configurations as follows:
 | B3 | B1 with two independent grippers |
 | E0 | Elevator baseline (provided) |
 | E1 | Split-service even/odd elevators |
-| F0 | Ferry baseline (provided) |
-| F1 | Four-car cross traffic with one ferry |
-| F2 | F1 with two independent ferries |
+| L0 | Logistics: deliver carried `c1` to `d2` (provided) |
+| L1 | Logistics: `c1` at `d1`; robot at `d2` |
+| L2 | L1 plus `c3` onboard the robot |
+| L3 | Logistics: `c1` at `d2`; `c3` at `d3` |
+| L4 | Logistics: all containers at `d3` |
 
 Use these IDs when reading the handout and discussing results in your PDF report.
 
@@ -37,7 +39,7 @@ The required modifications are fixed. Do **not** invent a different world modifi
 ---
 Submit:
 
-1. the nine completed PDDL TODO files listed below; and
+1. the ten completed PDDL TODO files listed below; and
 2. one **PDF report** following the analysis requirements in the project handout. The PDF filename is up to you unless the submission system specifies one.
 
 The detailed report questions are in the assignment PDF/LaTeX handout, not in this README. This README is primarily a guide to the codebase and the implementation tasks.
@@ -53,6 +55,8 @@ cmsc421-project2/
 |-- pytest.ini
 |-- run_experiments.py
 |-- make_plots.py
+|-- visualize_plan.py
+|-- main.tex
 |-- planner/
 |   |-- __init__.py
 |   |-- __main__.py
@@ -74,15 +78,18 @@ cmsc421-project2/
 |   |   |-- baseline.pddl                    PROVIDED
 |   |   |-- domain_split_service.pddl        TODO
 |   |   `-- split_service.pddl               TODO
-|   `-- ferry/
-|       |-- domain.pddl                      PROVIDED
-|       |-- baseline.pddl                    PROVIDED
-|       |-- ferry_cross_traffic.pddl         TODO
-|       |-- domain_two_ferries.pddl          TODO
-|       `-- ferry_cross_traffic_two.pddl     TODO
+|   `-- logistics/
+|       |-- domain.pddl                                      PROVIDED
+|       |-- goal_c1_d2.pddl                                  PROVIDED
+|       |-- goal_c1_d1_robot_d2.pddl                         TODO
+|       |-- goal_c1_d1_c3_onboard_robot_d2.pddl              TODO
+|       |-- goal_c1_d2_c3_d3.pddl                            TODO
+|       `-- goal_all_d3.pddl                                 TODO
 |-- tests/
+|   |-- conftest.py
 |   |-- test_baseline.py
-|   `-- test_student_models.py
+|   |-- test_student_models.py
+|   `-- test_visualize_plan.py
 `-- results/
     `-- .gitkeep
 ```
@@ -111,7 +118,8 @@ Run the remaining commands from the repository root.
 A virtual environment is recommended:
 
 ```bash
-python -m venv .venv
+conda create -n project2 python=3.10
+conda activate project2
 ```
 
 Activate it, then install the dependencies:
@@ -151,9 +159,10 @@ pddl/blocksworld/sussman3_two_grippers.pddl
 pddl/elevator/domain_split_service.pddl
 pddl/elevator/split_service.pddl
 
-pddl/ferry/ferry_cross_traffic.pddl
-pddl/ferry/domain_two_ferries.pddl
-pddl/ferry/ferry_cross_traffic_two.pddl
+pddl/logistics/goal_c1_d1_robot_d2.pddl
+pddl/logistics/goal_c1_d1_c3_onboard_robot_d2.pddl
+pddl/logistics/goal_c1_d2_c3_d3.pddl
+pddl/logistics/goal_all_d3.pddl
 ```
 
 Do **not** modify:
@@ -168,8 +177,8 @@ pddl/blocksworld/domain.pddl
 pddl/blocksworld/baseline3.pddl
 pddl/elevator/domain.pddl
 pddl/elevator/baseline.pddl
-pddl/ferry/domain.pddl
-pddl/ferry/baseline.pddl
+pddl/logistics/domain.pddl
+pddl/logistics/goal_c1_d2.pddl
 ```
 
 The supplied planners are experimental infrastructure. Changing them would make comparisons inconsistent.
@@ -416,115 +425,99 @@ Thus both passengers must use `f0` as the transfer floor between the two service
 
 ---
 
-# Part 3 - Ferry World
+# Part 3 - Logistics Goal-Interaction Study
 
-The baseline files are provided:
-
-```text
-pddl/ferry/domain.pddl
-pddl/ferry/baseline.pddl
-```
-
-Run them first as a control case.
-
-## 1. Cross traffic with one ferry
-
-Complete:
+The Logistics domain and baseline problem are provided:
 
 ```text
-pddl/ferry/ferry_cross_traffic.pddl
+pddl/logistics/domain.pddl
+pddl/logistics/goal_c1_d2.pddl
 ```
 
-Use exactly:
+The domain provides `pickup`, `putdown`, and `move`. It has one robot with
+capacity one, represented by the positive fluent `empty`. All five Logistics
+experiments use the same objects, connectivity, and initial state; only the goal
+conjunction changes.
+
+Use exactly these objects in L1--L4:
 
 ```text
-c1 c2 c3 c4 - car
-left-bank right-bank - location
+r1 - robot
+c1 c2 c3 - container
+d1 d2 d3 - location
 ```
 
-Required initial facts:
+Use exactly this common initial state:
 
 ```text
-(car-at c1 left-bank)
-(car-at c2 left-bank)
-(car-at c3 right-bank)
-(car-at c4 right-bank)
-(ferry-at left-bank)
-(empty)
-(route left-bank right-bank)
-(route right-bank left-bank)
+(onboard c1 r1)
+(container-at c2 d1)
+(container-at c3 d2)
+(robot-at r1 d1)
+
+(connected d1 d2) (connected d2 d1)
+(connected d1 d3) (connected d3 d1)
+(connected d2 d3) (connected d3 d2)
 ```
 
-Required goals:
+Container `c1` starts onboard, so the robot does **not** initially have an
+`(empty r1)` fact. Do not change the provided Logistics domain or add initial
+facts to make a goal easier.
+
+## L0 - Baseline: deliver `c1` to `d2`
+
+The provided baseline goal in `pddl/logistics/goal_c1_d2.pddl` is:
 
 ```text
-(car-at c1 right-bank)
-(car-at c2 right-bank)
-(car-at c3 left-bank)
-(car-at c4 left-bank)
+(container-at c1 d2)
 ```
 
-The provided ferry domain still has capacity one.
+Run L0 first as a control case.
 
-## 2. Two-ferry extension
+## L1 - Container and robot location goals
 
-Complete:
+Complete `pddl/logistics/goal_c1_d1_robot_d2.pddl` with the common objects and
+initial state, and exactly these goal facts:
 
 ```text
-pddl/ferry/domain_two_ferries.pddl
-pddl/ferry/ferry_cross_traffic_two.pddl
+(container-at c1 d1)
+(robot-at r1 d2)
 ```
 
-Use the domain name:
+## L2 - Container-onboard goal
+
+Complete `pddl/logistics/goal_c1_d1_c3_onboard_robot_d2.pddl` with:
 
 ```text
-ferry-two
+(container-at c1 d1)
+(robot-at r1 d2)
+(onboard c3 r1)
 ```
 
-Use these types:
+All three facts must hold in the same final state.
+
+## L3 - Two-container delivery goal
+
+Complete `pddl/logistics/goal_c1_d2_c3_d3.pddl` with:
 
 ```text
-car ferry location
+(container-at c1 d2)
+(container-at c3 d3)
 ```
 
-Use these predicates:
+The robot's final location and `c2`'s final location are not goal facts.
+
+## L4 - Full delivery goal
+
+Complete `pddl/logistics/goal_all_d3.pddl` with:
 
 ```text
-(car-at ?c - car ?l - location)
-(ferry-at ?f - ferry ?l - location)
-(empty ?f - ferry)
-(onboard ?c - car ?f - ferry)
-(route ?from - location ?to - location)
+(container-at c1 d3)
+(container-at c2 d3)
+(container-at c3 d3)
 ```
 
-Implement:
-
-```text
-board
-debark
-sail
-```
-
-Each action must explicitly identify which ferry is being used. Each ferry has its own location and its own `empty` state, so each ferry independently has capacity one.
-
-The problem must contain exactly:
-
-```text
-ferry1 ferry2 - ferry
-```
-
-Required ferry initial facts:
-
-```text
-(ferry-at ferry1 left-bank)
-(ferry-at ferry2 right-bank)
-(empty ferry1)
-(empty ferry2)
-```
-
-Use the same four cars, car starting positions, routes, and car goals as the one-ferry cross-traffic problem.
-
-Do not add extra locations or change capacity.
+The robot's final location and whether it is empty are not separately required.
 
 ---
 
@@ -545,7 +538,7 @@ results/plans.txt
 
 `results/results.csv` contains both the handout experiment ID (for example `B1`) and a descriptive internal case name. It records, when applicable:
 
-- `experiment_id`: the B0--B3 / E0--E1 / F0--F2 identifier used in the handout;
+- `experiment_id`: the B0--B3 / E0--E1 / L0--L4 identifier used in the handout;
 - `case`: a descriptive machine-readable case name;
 - `ground_actions`: number of grounded actions for the problem;
 - `states_generated`, `states_expanded`, `visited_states`, `max_frontier`: forward-BFS search measurements;
@@ -590,6 +583,33 @@ These figures are inputs to your **PDF report**.
 
 ---
 
+# Visualizing a plan (optional)
+
+The standalone visualizer solves one completed experiment and displays its
+world-state trace. It supports Blocks World, Elevator, and Logistics without
+changing the supplied planner or experiment code.
+
+List the cases that are currently ready:
+
+```bash
+python visualize_plan.py --list
+```
+
+Open an interactive GraphPlan plan viewer:
+
+```bash
+python visualize_plan.py --case B0 --planner graphplan
+```
+
+Use **Previous** and **Next** (or the left and right arrow keys) to inspect the
+plan one step at a time. Satisfied goal facts are outlined in green. A GraphPlan
+frame can contain multiple parallel actions.
+
+An unfinished student case reports which PDDL file must be completed instead of
+trying to display a partial model.
+
+---
+
 # Public tests
 
 Run:
@@ -599,6 +619,10 @@ python -m pytest
 ```
 
 The public tests verify the prescribed structure of the student PDDL files and check that the resulting problems are solvable by the supplied planners.
+The final `PDDL checks` section reports every baseline and student case as
+`PASS`, `FAIL`, or `INCOMPLETE`. An incomplete case still contains a
+`TODO-STUDENT: UNFINISHED` marker. If a completed model fails, pytest also
+prints the corresponding assertion details.
 
 Passing the public tests does not replace inspecting the generated plans. Your report is graded on whether you understand and explain the observed behavior.
 
