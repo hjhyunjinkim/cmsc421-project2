@@ -1,0 +1,4 @@
+# Core planning code uses only the Python standard library.
+# These packages are used for public tests and the required PDF-report figures.
+pytest>=8.0,<10.0
+matplotlib>=3.8,<4.0
